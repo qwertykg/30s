@@ -1,0 +1,310 @@
+<html>
+    <head>
+        <title>30 Seconds</title>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/3.0.4/socket.io.js" integrity="sha512-aMGMvNYu8Ue4G+fHa359jcPb1u+ytAF+P2SCb+PxrjCdO3n3ZTxJ30zuH39rimUggmTwmh2u7wvQsDTHESnmfQ==" crossorigin="anonymous"></script>
+    </head>
+    <body>
+        <button id="restartGame" style="display: none;">Restart Game</button>
+
+        <div id= "team1">
+            <p>Team1:</p>
+        </div>
+        <br>
+        <div id= "team2">
+            <p>Team2:</p>
+        </div>
+
+        <div>
+            <p id="team1Score">Team1 Score:</p>
+        </div>
+        <div>
+            <p id="team2Score">Team2 Score:</p>
+        </div>
+        <div>
+            <p id="timer">Time Left:</p>
+        </div>
+        <br>
+        <button id="rollDice" style="display: none;">Roll Dice</button>
+        <button id="startGame">Start Game</button>
+        <button id="switchTeams">Switch Teams</button>
+        <br>
+        <div id= "diceRollResult">
+            <p id="diceResult">Dice roll result:</p>
+        </div>
+        <button id="revealWords" style="display: none;">Reveal words</button>
+        <button id="endTurn" style="display: none;">End Turn</button>
+
+        <p>Current Words:</p>
+        <div id= "currentWords">
+        </div>
+
+        <script>
+
+            function arrayRemove(arr, value) { 
+                return arr.filter(function(ele) { 
+                    return ele != value; 
+                });
+            }
+
+            var socket = io.connect(`${window.location.origin}/`);
+            var currentPlayersInTeam1 = [];
+            var currentPlayersInTeam2 = [];
+
+            var myCurrentTeam = 1;
+
+            socket.on("team1", function(players)
+            {
+                for(player of players)
+                {
+                    if (currentPlayersInTeam1.includes(player)) continue;
+                   
+                    currentPlayersInTeam1.push(player);
+
+                    var team1 = document.getElementById("team1");
+
+                    var p = document.createElement("p");
+                    p.innerHTML = player + "<br>";
+                    p.id = player;
+                    team1.appendChild(p);    
+                }
+            });
+
+            socket.on("team2", function(players)
+            {
+                for (player of players)
+                {
+                    if(currentPlayersInTeam2.includes(player)) continue;
+
+                    currentPlayersInTeam2.push(player);
+
+                    var team2 = document.getElementById("team2");
+
+                    var p = document.createElement("p");
+                    p.innerHTML = player + "<br>";
+                    p.id = player;
+                    team2.appendChild(p);
+                }
+            });
+
+            socket.on("refreshBrowser", function(players)
+            {
+                window.location.href = `${window.location.origin}/`;
+            });
+
+            socket.on("switchData", function(data)
+            {
+                if (data.player === window.location.search.split("=")[1]) return;
+
+                var team1 = document.getElementById("team1");
+                var team2 = document.getElementById("team2");
+
+                if (data.currentTeam === 1) {
+
+                    myP = document.getElementById(data.player);
+
+                    team1.removeChild(myP);
+                    team2.appendChild(myP);
+                }
+                else {
+                    myP = document.getElementById(data.player);
+                    
+                    team2.removeChild(myP);
+                    team1.appendChild(myP);
+                }
+                currentPlayersInTeam1 = data.currentPlayersInTeam1;
+                currentPlayersInTeam2 = data.currentPlayersInTeam2;
+            });
+
+            socket.emit("playerEnteredTeam1", {name: window.location.search.split("=")[1]});
+
+            document.getElementById('switchTeams').onclick = function() {
+
+                var myP;
+                console.log(myCurrentTeam);
+
+                if (myCurrentTeam === 1) {
+                    var team1 = document.getElementById("team1");
+                    var team2 = document.getElementById("team2");
+
+                    myP = document.getElementById(window.location.search.split("=")[1]);
+
+                    team1.removeChild(myP);
+                    team2.appendChild(myP);
+
+                    currentPlayersInTeam1 = arrayRemove(currentPlayersInTeam1, window.location.search.split("=")[1]);
+                    currentPlayersInTeam2.push(window.location.search.split("=")[1]);
+                    myCurrentTeam = 2;
+                }
+                else {
+                    var team1 = document.getElementById("team1");
+                    var team2 = document.getElementById("team2");
+
+                    myP = document.getElementById(window.location.search.split("=")[1]);
+
+                    team2.removeChild(myP);
+                    team1.appendChild(myP);
+
+                    currentPlayersInTeam2 = arrayRemove(currentPlayersInTeam2, window.location.search.split("=")[1]);
+                    currentPlayersInTeam1.push(window.location.search.split("=")[1]);
+                    myCurrentTeam = 1;
+                }
+
+                console.log("=======");
+                console.log(currentPlayersInTeam1);
+                console.log(currentPlayersInTeam2);
+                console.log("=======");
+
+                socket.emit("team1update", {team1: currentPlayersInTeam1});
+                socket.emit("team2update", {team2: currentPlayersInTeam2});
+                socket.emit("playerSwitchedTeams", {player: window.location.search.split("=")[1], node: myP, currentTeam: myCurrentTeam, currentPlayersInTeam1: currentPlayersInTeam1, currentPlayersInTeam2: currentPlayersInTeam2});
+            };
+
+            document.getElementById('startGame').onclick = function() {
+                socket.emit("startGame", {team1: currentPlayersInTeam1, team2: currentPlayersInTeam2});
+            };
+
+            document.getElementById('restartGame').onclick = function() {
+                socket.emit("restartGame", {});
+            };
+
+            socket.on("gameHasStarted", function(data)
+            {
+                document.getElementById('restartGame').style.display = "unset";
+
+                if(window.location.search.split("=")[1] === data)
+                {
+                    document.getElementById('rollDice').style.display = "unset";
+                }
+                else
+                {
+                    document.getElementById('rollDice').style.display = "none";
+                }
+                document.getElementById('startGame').style.display = "none";
+                document.getElementById('switchTeams').style.display = "none";            
+
+                document.getElementById('team1Score').innerText = "Team1 Score: 0 / 15";            
+                document.getElementById('team2Score').innerText = "Team2 Score: 0 / 15";            
+            });
+
+            socket.on("nextTurn", function(data)
+            {
+                if(window.location.search.split("=")[1] === data)
+                {
+                    document.getElementById('rollDice').style.display = "unset";
+                }
+                else
+                {
+                    document.getElementById('rollDice').style.display = "none";
+                }
+                document.getElementById('startGame').style.display = "none";
+                document.getElementById('switchTeams').style.display = "none";            
+            });
+
+            document.getElementById('rollDice').onclick = function() {
+                var parent = document.getElementById('currentWords');
+                parent.innerHTML = "";
+                socket.emit("rollDice", {});
+            };
+
+            socket.on("dieResult", function(data)
+            {
+                document.getElementById('rollDice').style.display = "none";
+                document.getElementById('diceResult').innerText = "Dice roll result: " + data.die;
+
+                if(window.location.search.split("=")[1] === data.player)
+                {
+                    document.getElementById('revealWords').style.display = "unset";
+                }
+            });
+
+            document.getElementById('revealWords').onclick = function() {
+                socket.emit("revealWords", {});
+                document.getElementById('revealWords').style.display = "none";
+            };
+
+            document.getElementById('endTurn').onclick = function() {
+                socket.emit("endTurn", {});
+                document.getElementById('endTurn').style.display = "none";
+            };
+
+            socket.on("wordsToPlayer", function(data)
+            {
+                var parent = document.getElementById('currentWords');
+                parent.innerHTML = "";
+                for(word of data)
+                {
+                    var p = document.createElement("p");
+                    p.innerHTML = word;
+
+                    var chk = document.createElement('input');
+                    chk.setAttribute('type', 'checkbox');
+                    chk.setAttribute('id', word);
+
+                    p.appendChild(chk);
+
+                    parent.appendChild(p);   
+                }   
+            });
+
+            socket.on("words", function(data)
+            {
+                if (data.player !== window.location.search.split("=")[1])
+                {
+                    var parent = document.getElementById('currentWords');
+                    parent.innerHTML = "";
+                
+                    for(word of data.words)
+                    {
+                        var p = document.createElement("p");
+                        p.innerHTML = word;
+                        parent.appendChild(p);   
+                    }   
+                }
+                else
+                {
+                    document.getElementById('endTurn').style.display = "unset";
+                }
+               
+            });
+
+            socket.on("timer", function(data)
+            {
+                var timer = document.getElementById('timer');
+                timer.innerHTML = "Time Left: " + data;                
+            });
+
+            socket.on("getStateOfWordsFromClient", function(data)
+            {
+               var score = 0;
+
+               for (word of data)
+               {
+                   var check = document.getElementById(word);
+
+                   if (check.checked)
+                   {
+                       score++;
+                   }
+               }
+
+               socket.emit("score", score);
+            });
+
+            socket.on("newScore", function(data)
+            {
+                document.getElementById(data.team).innerText = data.result;
+            });
+
+            socket.on("team1Wins", function(data)
+            {
+                alert("Team 1 wins");
+            });
+
+            socket.on("team2Wins", function(data)
+            {
+                alert("Team 2 wins");
+            });
+
+        </script>
+    </body>
+</html>
